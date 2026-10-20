@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-labelledby="title desc">
+  <title id="title">Disk usage alert workflow</title>
+  <desc id="desc">Schedule triggers Execute Command df. If usage is over the threshold, Telegram and Email send an alert.</desc>
+  <rect width="960" height="640" fill="#0b1220"/>
+  <rect x="24" y="20" width="912" height="600" rx="16" fill="#111827" stroke="#1f2937"/>
+  <text x="48" y="64" fill="#e2e8f0" font-family="ui-sans-serif, system-ui, sans-serif" font-size="22" font-weight="700">Disk usage alert</text>
+  <text x="48" y="90" fill="#94a3b8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">Hourly check on the host where n8n runs. Default threshold 85%.</text>
+  <text x="760" y="64" fill="#5eead4" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" text-anchor="end">lite preview</text>
+
+  <rect x="48" y="118" width="168" height="108" rx="12" fill="#0f2744" stroke="#38bdf8"/>
+  <text x="64" y="146" fill="#7dd3fc" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="700">1  SCHEDULE</text>
+  <text x="64" y="172" fill="#f8fafc" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="700">Hourly</text>
+  <text x="64" y="196" fill="#94a3b8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">every 1 hour</text>
+
+  <path d="M216 172 H248" stroke="#64748b" stroke-width="2" fill="none"/>
+  <path d="M242 166 L254 172 L242 178" fill="#64748b"/>
+
+  <rect x="254" y="118" width="188" height="108" rx="12" fill="#13261c" stroke="#34d399"/>
+  <text x="270" y="146" fill="#6ee7b7" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="700">2  EXECUTE COMMAND</text>
+  <text x="270" y="172" fill="#f8fafc" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="700">df</text>
+  <text x="270" y="196" fill="#94a3b8" font-family="ui-monospace, ui-sans-serif, monospace" font-size="11">df -P  |  fallback df -PT</text>
+
+  <path d="M442 172 H478" stroke="#64748b" stroke-width="2" fill="none"/>
+  <path d="M472 166 L484 172 L472 178" fill="#64748b"/>
+
+  <rect x="484" y="118" width="188" height="108" rx="12" fill="#2a2110" stroke="#fbbf24"/>
+  <text x="500" y="146" fill="#fcd34d" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="700">3  IF</text>
+  <text x="500" y="172" fill="#f8fafc" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="700">usage &gt; threshold</text>
+  <text x="500" y="196" fill="#94a3b8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">capacity_percent &gt;= 85</text>
+
+  <path d="M672 154 H706 V128 H736" stroke="#64748b" stroke-width="2" fill="none"/>
+  <path d="M730 122 L742 128 L730 134" fill="#64748b"/>
+  <path d="M672 190 H706 V248 H736" stroke="#64748b" stroke-width="2" fill="none"/>
+  <path d="M730 242 L742 248 L730 254" fill="#64748b"/>
+
+  <rect x="742" y="96" width="178" height="64" rx="12" fill="#2a1420" stroke="#fb7185"/>
+  <text x="758" y="122" fill="#fda4af" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="700">4  TELEGRAM</text>
+  <text x="758" y="144" fill="#f8fafc" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">send alert message</text>
+
+  <rect x="742" y="216" width="178" height="64" rx="12" fill="#2a1420" stroke="#fb7185"/>
+  <text x="758" y="242" fill="#fda4af" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="700">4  EMAIL</text>
+  <text x="758" y="264" fill="#f8fafc" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">send the same text</text>
+
+  <text x="742" y="304" fill="#64748b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">Both nodes ship disabled.</text>
+
+  <rect x="48" y="340" width="872" height="248" rx="12" fill="#0b1220" stroke="#334155"/>
+  <text x="72" y="376" fill="#e2e8f0" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700">Sample alert</text>
+  <text x="188" y="376" fill="#94a3b8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">sent only when at least one filesystem is at or above the threshold</text>
+
+  <rect x="72" y="396" width="520" height="164" rx="10" fill="#020617" stroke="#1e293b"/>
+  <text x="92" y="428" fill="#fca5a5" font-family="ui-monospace, ui-sans-serif, monospace" font-size="13">Disk usage at or above 85%:</text>
+  <text x="92" y="458" fill="#e2e8f0" font-family="ui-monospace, ui-sans-serif, monospace" font-size="14">/      92%  (/dev/sda1)</text>
+  <text x="92" y="486" fill="#e2e8f0" font-family="ui-monospace, ui-sans-serif, monospace" font-size="14">/var   88%  (/dev/sda2)</text>
+  <text x="92" y="530" fill="#64748b" font-family="ui-monospace, ui-sans-serif, monospace" font-size="12">chat: YOUR_TELEGRAM_CHAT_ID</text>
+
+  <text x="620" y="430" fill="#94a3b8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">Webhook reply shape</text>
+  <text x="620" y="458" fill="#cbd5e1" font-family="ui-monospace, ui-sans-serif, monospace" font-size="12">{ "ok": true,</text>
+  <text x="620" y="478" fill="#cbd5e1" font-family="ui-monospace, ui-sans-serif, monospace" font-size="12">  "threshold": 85,</text>
+  <text x="620" y="498" fill="#cbd5e1" font-family="ui-monospace, ui-sans-serif, monospace" font-size="12">  "over": [ ... ],</text>
+  <text x="620" y="518" fill="#cbd5e1" font-family="ui-monospace, ui-sans-serif, monospace" font-size="12">  "filesystems": [ ... ] }</text>
+  <text x="620" y="546" fill="#64748b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">POST /webhook/disk-check</text>
+</svg>

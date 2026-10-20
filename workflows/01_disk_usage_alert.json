@@ -1,0 +1,419 @@
+{
+  "id": "diskUsageAlert01",
+  "name": "Disk usage alert",
+  "active": false,
+  "nodes": [
+    {
+      "id": "note-disk-01",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        -40
+      ],
+      "parameters": {
+        "content": "## Disk usage alert (Cedar Rack)\n\nBuilt-in nodes only. No secrets are stored in this workflow.\n\n1. n8n 2 disables Execute Command unless you set NODES_EXCLUDE=[].\n2. The command is `df -P -x tmpfs -x devtmpfs`. On BusyBox df (the official image) `-x` is missing, so the same node falls back to `df -PT`. The Code node drops tmpfs and devtmpfs either way.\n3. Edit the Set node. threshold_percent defaults to 85. A filesystem is over when capacity_percent is at or above that number.\n4. Hourly schedule and Manual Trigger run the same check. They do not call Respond to Webhook.\n5. POST /webhook/disk-check runs the same check and responds with JSON: ok, threshold, over, filesystems.\n6. Telegram and Email ship disabled. Create credentials named \"Telegram account\" and \"SMTP account\", select them, then enable the node. Chat id YOUR_TELEGRAM_CHAT_ID. From alerts@example.com to ops@example.com.\n7. Docker df sees the container filesystem. Run n8n on the host when you want the host's disks.\n",
+        "height": 720,
+        "width": 480,
+        "color": 4
+      }
+    },
+    {
+      "id": "sched-disk-01",
+      "name": "Hourly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        80
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "manual-disk-01",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        280
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "wh-disk-01",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        480
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "disk-check",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "disk-check-hook"
+    },
+    {
+      "id": "set-disk-01",
+      "name": "Set Threshold",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        280,
+        280
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "th-disk-01",
+              "name": "threshold_percent",
+              "value": 85,
+              "type": "number"
+            },
+            {
+              "id": "src-disk-01",
+              "name": "source",
+              "value": "={{ $json.headers ? 'webhook' : ($json.timestamp ? 'schedule' : 'manual') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cmd-disk-01",
+      "name": "Run df",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        560,
+        120
+      ],
+      "parameters": {
+        "executeOnce": true,
+        "command": "df -P -x tmpfs -x devtmpfs 2>/dev/null || df -PT"
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "merge-disk-01",
+      "name": "Keep Threshold",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        560,
+        400
+      ],
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      }
+    },
+    {
+      "id": "code-disk-01",
+      "name": "Parse df",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        280
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Parse POSIX df output. GNU `df -P` has no type column. BusyBox `df -PT`\n// puts the type in the second column. tmpfs and devtmpfs are dropped here\n// so the BusyBox fallback matches `df -P -x tmpfs -x devtmpfs`.\n\n// BEGIN_DISK\nfunction parseDf(stdout) {\n  var lines = String(stdout || '').split(/\\r?\\n/);\n  var rows = [];\n  var i;\n  for (i = 0; i < lines.length; i++) {\n    var line = lines[i].trim();\n    if (!line || /^Filesystem\\b/i.test(line)) continue;\n    var parts = line.split(/\\s+/);\n    var capIndex = -1;\n    var p;\n    for (p = 0; p < parts.length; p++) {\n      if (/^\\d+%$/.test(parts[p])) capIndex = p;\n    }\n    if (capIndex < 4) continue;\n    var capacity = Number(parts[capIndex].slice(0, -1));\n    var available = Number(parts[capIndex - 1]);\n    var used = Number(parts[capIndex - 2]);\n    var blocks = Number(parts[capIndex - 3]);\n    if (!isFinite(capacity) || !isFinite(available) || !isFinite(used) || !isFinite(blocks)) continue;\n    var blocksAt = capIndex - 3;\n    var fstype = '';\n    var filesystem = '';\n    if (blocksAt >= 2) {\n      fstype = parts[blocksAt - 1];\n      filesystem = parts.slice(0, blocksAt - 1).join(' ');\n    } else if (blocksAt === 1) {\n      filesystem = parts[0];\n    } else {\n      continue;\n    }\n    var mount = parts.slice(capIndex + 1).join(' ');\n    if (!filesystem || !mount) continue;\n    if (/^(tmpfs|devtmpfs)$/i.test(fstype)) continue;\n    if (/^(tmpfs|devtmpfs)$/i.test(filesystem)) continue;\n    rows.push({\n      filesystem: filesystem,\n      fstype: fstype || null,\n      blocks_1k: blocks,\n      used: used,\n      available: available,\n      capacity_percent: capacity,\n      mount: mount,\n    });\n  }\n  return rows;\n}\n\nfunction buildDiskReport(stdout, threshold, exitCode, commandError) {\n  var filesystems = parseDf(stdout);\n  var over = [];\n  var i;\n  for (i = 0; i < filesystems.length; i++) {\n    if (filesystems[i].capacity_percent >= threshold) over.push(filesystems[i]);\n  }\n  var ok = !commandError && exitCode === 0 && filesystems.length > 0;\n  var message;\n  if (commandError) {\n    message = 'Disk check failed: ' + commandError;\n  } else if (!ok) {\n    message = 'Disk check failed: df returned no filesystems.';\n  } else if (!over.length) {\n    message = 'Disk usage is under ' + threshold + '% on every reported filesystem.';\n  } else {\n    var lines = ['Disk usage at or above ' + threshold + '%:'];\n    for (i = 0; i < over.length; i++) {\n      var row = over[i];\n      lines.push(row.mount + ' ' + row.capacity_percent + '% (' + row.filesystem + ')');\n    }\n    message = lines.join('\\n');\n  }\n  return {\n    ok: ok,\n    threshold: threshold,\n    over: over,\n    filesystems: filesystems,\n    message: message,\n  };\n}\n// END_DISK\n\nconst item = $input.first().json || {};\nconst thresholdNum = Number(item.threshold_percent);\nconst threshold = isFinite(thresholdNum) ? thresholdNum : 85;\nconst exitCode = typeof item.exitCode === 'number' ? item.exitCode : (item.error ? 1 : 0);\nconst report = buildDiskReport(\n  String(item.stdout || ''),\n  threshold,\n  exitCode,\n  item.error ? String(item.error) : ''\n);\nreport.source = String(item.source || '');\nreport.over_count = report.over.length;\nreport.response_json = JSON.stringify({\n  ok: report.ok,\n  threshold: report.threshold,\n  over: report.over,\n  filesystems: report.filesystems,\n});\nreturn [{ json: report }];\n"
+      }
+    },
+    {
+      "id": "if-wh-disk-01",
+      "name": "Is Webhook",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "src-wh-disk",
+              "leftValue": "={{ $json.source }}",
+              "rightValue": "webhook",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "if-over-disk-01",
+      "name": "Over Threshold",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "over-disk",
+              "leftValue": "={{ $json.over_count }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte",
+                "name": "filter.operator.gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "resp-disk-01",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1360,
+        120
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.response_json }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "tg-disk-01",
+      "name": "Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        420
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ $json.message || $json.digest }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      },
+      "disabled": true,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "em-disk-01",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        420
+      ],
+      "parameters": {
+        "resource": "email",
+        "operation": "send",
+        "fromEmail": "alerts@example.com",
+        "toEmail": "ops@example.com",
+        "subject": "Disk usage alert",
+        "emailFormat": "text",
+        "text": "={{ $json.message || $json.digest }}",
+        "options": {}
+      },
+      "credentials": {
+        "smtp": {
+          "name": "SMTP account"
+        }
+      },
+      "disabled": true,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Hourly": {
+      "main": [
+        [
+          {
+            "node": "Set Threshold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Threshold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Threshold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Threshold": {
+      "main": [
+        [
+          {
+            "node": "Run df",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Keep Threshold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run df": {
+      "main": [
+        [
+          {
+            "node": "Keep Threshold",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Keep Threshold": {
+      "main": [
+        [
+          {
+            "node": "Parse df",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse df": {
+      "main": [
+        [
+          {
+            "node": "Is Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Over Threshold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Over Threshold": {
+      "main": [
+        [
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Telegram": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "versionId": "diskUsageAlert01ver00000001"
+}
